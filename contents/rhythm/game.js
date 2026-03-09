@@ -27,9 +27,9 @@ export class RhythmGame {
     this.W = 0; this.H = 0; this.cx = 0;
     this.VY = 0; this.JY = 0; this.TL = 0; this.TR = 0; this.LW = 0;
     // Settings
-    this.diffKey = localStorage.getItem('rg_diff') || 'NORMAL';
+    this.diffKey = localStorage.getItem('rg_diff') || 'EASY';
     this.offsetAdj = +(localStorage.getItem('rg_offset') || 0);
-    this.APPROACH_MS = 2200; this.WIN_P = 100; this.WIN_G = 200; this.WIN_OK = 300;
+    this.APPROACH_MS = 3000; this.WIN_P = 200; this.WIN_G = 400; this.WIN_OK = 600;
     // Entry anim
     this.entryAnim = false; this.entryAnimT = 0;
     this.entryTimerId = null; this.earlyAudioTimerId = null; this.earlyAudioStarted = false;
@@ -46,9 +46,9 @@ export class RhythmGame {
     this.GLOWS = ['rgba(255,112,67,.7)','rgba(38,198,218,.7)','rgba(102,187,106,.7)','rgba(171,71,188,.7)'];
     this.NAMES = ['KICK','SNARE','MELODY','HI-HAT'];
     this.DIFFICULTIES = {
-      EASY:   { approachMs:3000, winP:150, winG:300, winOk:450, col:'#66bb6a' },
-      NORMAL: { approachMs:2200, winP:100, winG:200, winOk:300, col:'#26c6da' },
-      HARD:   { approachMs:1600, winP:50,  winG:100, winOk:160, col:'#ff7043' },
+      EASY:   { approachMs:3000, winP:200, winG:400, winOk:600, col:'#66bb6a' },
+      NORMAL: { approachMs:2200, winP:150, winG:300, winOk:450, col:'#26c6da' },
+      HARD:   { approachMs:1600, winP:80,  winG:160, winOk:250, col:'#ff7043' },
     };
     this._location = null;
   }
@@ -214,7 +214,7 @@ export class RhythmGame {
       btn.style.color = d === k ? col : '#445';
       btn.style.background = d === k ? '#0a0a15' : '#0d0d20';
     });
-    const desc = { EASY:'PERFECT ±150ms / GREAT ±300ms / GOOD ±450ms', NORMAL:'PERFECT ±100ms / GREAT ±200ms / GOOD ±300ms', HARD:'PERFECT ±50ms / GREAT ±100ms / GOOD ±160ms' };
+    const desc = { EASY:'PERFECT ±200ms / GREAT ±400ms / GOOD ±600ms', NORMAL:'PERFECT ±150ms / GREAT ±300ms / GOOD ±450ms', HARD:'PERFECT ±80ms / GREAT ±160ms / GOOD ±250ms' };
     const el = this.container?.querySelector('#rg-diff-desc');
     if (el) el.textContent = desc[k];
   }
@@ -518,7 +518,7 @@ export class RhythmGame {
     const ms = (this.audioEl?.currentTime || 0) * 1000;
     for (let i = 0; i < this.chart.notes.length; i++) {
       if (this.flags[i] !== 0) continue;
-      if (ms - this.chart.notes[i].time_ms > this.WIN_OK + 25) this._miss(i);
+      if (ms - this.chart.notes[i].time_ms > this.WIN_OK + 80) this._miss(i);
     }
     this._schedUpcoming(ms);
     for (let i = 0; i < 4; i++) this.flash[i] *= 0.78;
