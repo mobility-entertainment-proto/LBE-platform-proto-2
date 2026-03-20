@@ -267,8 +267,11 @@ export class QuizB {
     if (this._resultTimer) { clearTimeout(this._resultTimer); this._resultTimer = null; }
     this.audio?.unlock();
     this._state = 'READING';
+    console.log('[QuizB] _startQuestion: state=READING, question=', this._question.question.slice(0, 20));
+    console.log('[QuizB] _skipReading at start:', this._skipReading);
 
     await this._speakSequence([this._question.question]);
+    console.log('[QuizB] _speakSequence finished, _skipReading=', this._skipReading);
 
     await new Promise(r => setTimeout(r, 500));
     this._spawnNotes();
@@ -503,6 +506,16 @@ export class QuizB {
     c.fillStyle = `rgba(100,200,255,${pulse})`;
     c.font = `${this.H*.02|0}px monospace`;
     c.fillText('♪ 読み上げ中... (タップでスキップ)', this.cx, this.H*.44);
+
+    // TTS 診断オーバーレイ（デバッグ用）
+    const ttsStatus = this.audio?.ttsStatus || '---';
+    const ttsVoice  = this.audio?.ttsVoice  || '---';
+    c.fillStyle = 'rgba(0,0,0,0.6)'; c.fillRect(0, this.H - 48, this.W, 48);
+    c.fillStyle = '#ff0'; c.font = `${Math.max(11, this.H * 0.018)|0}px monospace`;
+    c.textAlign = 'left';
+    c.fillText(`TTS: ${ttsStatus}`, 10, this.H - 30);
+    c.fillText(`Voice: ${ttsVoice}`, 10, this.H - 12);
+    c.textAlign = 'center';
   }
 
   _drawFlowing() {

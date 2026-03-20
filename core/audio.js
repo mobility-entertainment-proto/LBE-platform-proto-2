@@ -141,13 +141,22 @@ export class AudioManager {
 
   speak(text, options = {}) {
     return new Promise(resolve => {
-      if (!this.speechSynth) { resolve(); return; }
+      console.log('[TTS] speak() called:', JSON.stringify(text.slice(0, 30)));
+      this.ttsStatus = 'calling';
 
-      // NOTE: ctx.suspend() は iOS で AudioSession を変更し TTS が無音になるため呼ばない
+      if (!this.speechSynth) {
+        console.log('[TTS] speechSynth unavailable');
+        this.ttsStatus = 'unavailable';
+        resolve(); return;
+      }
+
+      const voices = this.speechSynth.getVoices();
+      console.log('[TTS] voices:', voices.length ? voices.map(v => v.lang + ':' + v.name).join(' | ') : 'NONE');
+      console.log('[TTS] before cancel: speaking=', this.speechSynth.speaking, 'pending=', this.speechSynth.pending);
+
       if (this.speechSynth.speaking || this.speechSynth.pending) this.speechSynth.cancel();
       if (this.speechSynth.paused) this.speechSynth.resume();
 
-      // cancel() 直後に speak() するとChrome/Androidでキューに積まれず無音になるバグ対策
       setTimeout(() => {
         const utt = new SpeechSynthesisUtterance(text);
         utt.lang = options.lang || 'ja-JP';
@@ -155,26 +164,59 @@ export class AudioManager {
         utt.pitch = options.pitch || 1.0;
 
         const jaVoice = this._jaVoice || this.speechSynth.getVoices().find(v => v.lang.startsWith('ja'));
-        if (jaVoice) utt.voice = jaVoice;
+        if (jaVoice) {
+          utt.voice = jaVoice;
+          this.ttsVoice = jaVoice.name + '/' + jaVoice.lang;
+          console.log('[TTS] voice:', jaVoice.name, jaVoice.lang);
+        } else {
+          this.ttsVoice = 'noJaVoice(lang=ja-JP)';
+          console.log('[TTS] no Japanese voice found, using lang=ja-JP only');
+        }
 
         let done = false;
-        const finish = () => {
+        const finish = (reason) => {
           if (done) return;
           done = true;
+          this.ttsStatus = 'done:' + reason;
+          console.log('[TTS] finish(), reason:', reason);
           clearTimeout(maxTimer);
           clearTimeout(startCheck);
           resolve();
         };
 
         const maxMs = Math.min(5000, Math.max(3000, text.length * 150 + 1500));
-        const maxTimer = setTimeout(finish, maxMs);
+        const maxTimer = setTimeout(() => {
+          console.log('[TTS] maxTimer fired (' + maxMs + 'ms)');
+          finish('maxTimer');
+        }, maxMs);
+
         const startCheck = setTimeout(() => {
-          if (!this.speechSynth.speaking && !this.speechSynth.pending) finish();
+          const sp = this.speechSynth.speaking;
+          const pe = this.speechSynth.pending;
+          console.log('[TTS] startCheck@800ms: speaking=', sp, 'pending=', pe);
+          if (!sp && !pe) {
+            console.log('[TTS] startCheck → speech never started, finishing');
+            finish('startCheck-notStarted');
+          }
         }, 800);
 
-        utt.onend = finish;
-        utt.onerror = finish;
+        utt.onstart = () => {
+          this.ttsStatus = 'speaking';
+          console.log('[TTS] onstart fired');
+        };
+        utt.onend = () => {
+          console.log('[TTS] onend fired');
+          finish('onend');
+        };
+        utt.onerror = (e) => {
+          console.log('[TTS] onerror:', e.error, e);
+          this.ttsStatus = 'error:' + e.error;
+          finish('onerror');
+        };
+
+        console.log('[TTS] calling speechSynth.speak()');
         this.speechSynth.speak(utt);
+        console.log('[TTS] after speak(): speaking=', this.speechSynth.speaking, 'pending=', this.speechSynth.pending);
       }, 50);
     });
   }
