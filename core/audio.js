@@ -143,10 +143,7 @@ export class AudioManager {
     return new Promise(resolve => {
       if (!this.speechSynth) { resolve(); return; }
 
-      if (this.ctx && this.ctx.state === 'running') {
-        this.ctx.suspend().catch(() => {});
-      }
-
+      // NOTE: ctx.suspend() は iOS で AudioSession を変更し TTS が無音になるため呼ばない
       if (this.speechSynth.speaking || this.speechSynth.pending) this.speechSynth.cancel();
       if (this.speechSynth.paused) this.speechSynth.resume();
 
@@ -166,13 +163,11 @@ export class AudioManager {
           done = true;
           clearTimeout(maxTimer);
           clearTimeout(startCheck);
-          if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
           resolve();
         };
 
         const maxMs = Math.min(5000, Math.max(3000, text.length * 150 + 1500));
         const maxTimer = setTimeout(finish, maxMs);
-        // cancel() 後のディレイを含めて 800ms 待っても開始しなければ諦める
         const startCheck = setTimeout(() => {
           if (!this.speechSynth.speaking && !this.speechSynth.pending) finish();
         }, 800);
@@ -186,6 +181,5 @@ export class AudioManager {
 
   stopSpeech() {
     if (this.speechSynth) this.speechSynth.cancel();
-    if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
   }
 }
