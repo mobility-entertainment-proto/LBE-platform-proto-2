@@ -150,33 +150,37 @@ export class AudioManager {
       if (this.speechSynth.speaking || this.speechSynth.pending) this.speechSynth.cancel();
       if (this.speechSynth.paused) this.speechSynth.resume();
 
-      const utt = new SpeechSynthesisUtterance(text);
-      utt.lang = options.lang || 'ja-JP';
-      utt.rate = options.rate || 0.9;
-      utt.pitch = options.pitch || 1.0;
+      // cancel() 直後に speak() するとChrome/Androidでキューに積まれず無音になるバグ対策
+      setTimeout(() => {
+        const utt = new SpeechSynthesisUtterance(text);
+        utt.lang = options.lang || 'ja-JP';
+        utt.rate = options.rate || 0.9;
+        utt.pitch = options.pitch || 1.0;
 
-      const jaVoice = this._jaVoice || this.speechSynth.getVoices().find(v => v.lang.startsWith('ja'));
-      if (jaVoice) utt.voice = jaVoice;
+        const jaVoice = this._jaVoice || this.speechSynth.getVoices().find(v => v.lang.startsWith('ja'));
+        if (jaVoice) utt.voice = jaVoice;
 
-      let done = false;
-      const finish = () => {
-        if (done) return;
-        done = true;
-        clearTimeout(maxTimer);
-        clearTimeout(startCheck);
-        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
-        resolve();
-      };
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          clearTimeout(maxTimer);
+          clearTimeout(startCheck);
+          if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+          resolve();
+        };
 
-      const maxMs = Math.min(5000, Math.max(3000, text.length * 150 + 1500));
-      const maxTimer = setTimeout(finish, maxMs);
-      const startCheck = setTimeout(() => {
-        if (!this.speechSynth.speaking && !this.speechSynth.pending) finish();
-      }, 300);
+        const maxMs = Math.min(5000, Math.max(3000, text.length * 150 + 1500));
+        const maxTimer = setTimeout(finish, maxMs);
+        // cancel() 後のディレイを含めて 800ms 待っても開始しなければ諦める
+        const startCheck = setTimeout(() => {
+          if (!this.speechSynth.speaking && !this.speechSynth.pending) finish();
+        }, 800);
 
-      utt.onend = finish;
-      utt.onerror = finish;
-      this.speechSynth.speak(utt);
+        utt.onend = finish;
+        utt.onerror = finish;
+        this.speechSynth.speak(utt);
+      }, 50);
     });
   }
 
