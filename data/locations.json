@@ -2,18 +2,18 @@
   {
     "id": "location_001",
     "name": "Test Area - Rhythm Game",
-    "lat": 34.0522,
-    "lng": -118.2437,
-    "radius": 500,
+    "lat": 35.6197488,
+    "lng": 139.7762173,
+    "radius": 2400,
     "content": "rhythm",
     "content_id": "highway_001"
   },
   {
     "id": "location_002",
     "name": "Test Area - Quiz",
-    "lat": 34.0195,
-    "lng": -118.4912,
-    "radius": 300,
+    "lat": 35.6197488,
+    "lng": 139.7762173,
+    "radius": 6000,
     "content": "quiz-b",
     "content_id": "santamonica_001"
   }
