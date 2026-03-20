@@ -39,6 +39,8 @@ export class QuizB {
     this._explanation = '';
     this._state       = 'IDLE'; // IDLE|INTRO|READING|FLOWING|RESULT
     this._skipReading = false;
+    this._ttsDebug    = '';     // 診断用：最後の TTS 状態
+    this._ttsDebugUntil = 0;   // 診断表示の期限（performance.now ms）
     this._introUntil  = 0;
     this._spokenResult = false;
     this._startTime   = 0;
@@ -273,7 +275,10 @@ export class QuizB {
     if (this.bgmEl) this.bgmEl.volume = 0.05; // BGM ダック（TTS が聞こえるよう）
     await this._speakSequence([this._question.question]);
     if (this.bgmEl) this.bgmEl.volume = 0.4;  // BGM 復元
-    console.log('[QuizB] _speakSequence finished, _skipReading=', this._skipReading);
+    // 診断ログを 8 秒間 FLOWING 画面に残す
+    this._ttsDebug = `TTS:${this.audio?.ttsStatus||'?'} Voice:${this.audio?.ttsVoice||'?'}`;
+    this._ttsDebugUntil = performance.now() + 8000;
+    console.log('[QuizB] _speakSequence finished, _skipReading=', this._skipReading, '_ttsDebug=', this._ttsDebug);
 
     await new Promise(r => setTimeout(r, 500));
     this._spawnNotes();
@@ -600,6 +605,15 @@ export class QuizB {
       c.font = `bold ${this.LW * .18|0}px monospace`; c.textAlign = 'center';
       c.fillText(NAMES[i], x + this.LW / 2, btnY + btnH * .55);
       c.globalAlpha = 1;
+    }
+
+    // TTS 診断オーバーレイ（READING 終了後 8 秒間表示）
+    if (this._ttsDebug && performance.now() < this._ttsDebugUntil) {
+      c.fillStyle = 'rgba(0,0,0,0.7)'; c.fillRect(0, 0, this.W, 36);
+      c.fillStyle = '#ff0'; c.font = `${Math.max(12, this.H * 0.02)|0}px monospace`;
+      c.textAlign = 'left';
+      c.fillText(this._ttsDebug, 8, 24);
+      c.textAlign = 'center';
     }
   }
 
