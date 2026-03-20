@@ -270,7 +270,9 @@ export class QuizB {
     console.log('[QuizB] _startQuestion: state=READING, question=', this._question.question.slice(0, 20));
     console.log('[QuizB] _skipReading at start:', this._skipReading);
 
+    if (this.bgmEl) this.bgmEl.volume = 0.05; // BGM ダック（TTS が聞こえるよう）
     await this._speakSequence([this._question.question]);
+    if (this.bgmEl) this.bgmEl.volume = 0.4;  // BGM 復元
     console.log('[QuizB] _speakSequence finished, _skipReading=', this._skipReading);
 
     await new Promise(r => setTimeout(r, 500));
@@ -715,8 +717,9 @@ export class QuizB {
     if (!this._spokenResult) {
       this._spokenResult = true;
       const answerText = this._question?.answer ? `正解は ${this._question.answer}` : '';
-      const expText = this._explanation ? `解説: ${this._explanation}` : '';
-      this._speakSequence([answerText, this._explanation].filter(Boolean));
+      if (this.bgmEl) this.bgmEl.volume = 0.05; // BGM ダック
+      this._speakSequence([answerText, this._explanation].filter(Boolean))
+        .then(() => { if (this.bgmEl) this.bgmEl.volume = 0.4; });
     }
     // 半透明オーバーレイ（背景を透かす）
     c.fillStyle = 'rgba(4,4,20,0.84)'; c.fillRect(0, 0, this.W, this.H);

@@ -23,6 +23,17 @@ export class AudioManager {
     try {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
       if (this.ctx.state === 'suspended') this.ctx.resume();
+
+      // iOS では speechSynthesis も最初の speak() をユーザージェスチャ内で呼ぶ必要がある
+      // ダミー（無音）発話でアンロックし、以降の非ジェスチャ呼び出しを可能にする
+      if (this.speechSynth) {
+        const dummy = new SpeechSynthesisUtterance(' ');
+        dummy.volume = 0;
+        this.speechSynth.speak(dummy);
+        setTimeout(() => this.speechSynth?.cancel(), 50);
+        console.log('[TTS] speechSynthesis unlock dummy sent');
+      }
+
       this.unlocked = true;
     } catch (e) {
       console.warn('[AudioManager] unlock failed', e);
@@ -157,67 +168,66 @@ export class AudioManager {
       if (this.speechSynth.speaking || this.speechSynth.pending) this.speechSynth.cancel();
       if (this.speechSynth.paused) this.speechSynth.resume();
 
-      setTimeout(() => {
-        const utt = new SpeechSynthesisUtterance(text);
-        utt.lang = options.lang || 'ja-JP';
-        utt.rate = options.rate || 0.9;
-        utt.pitch = options.pitch || 1.0;
+      // setTimeout を挟まず同期的に speak() を呼ぶ（iOS user activation context を維持するため）
+      const utt = new SpeechSynthesisUtterance(text);
+      utt.lang = options.lang || 'ja-JP';
+      utt.rate = options.rate || 0.9;
+      utt.pitch = options.pitch || 1.0;
 
-        const jaVoice = this._jaVoice || this.speechSynth.getVoices().find(v => v.lang.startsWith('ja'));
-        if (jaVoice) {
-          utt.voice = jaVoice;
-          this.ttsVoice = jaVoice.name + '/' + jaVoice.lang;
-          console.log('[TTS] voice:', jaVoice.name, jaVoice.lang);
-        } else {
-          this.ttsVoice = 'noJaVoice(lang=ja-JP)';
-          console.log('[TTS] no Japanese voice found, using lang=ja-JP only');
+      const jaVoice = this._jaVoice || this.speechSynth.getVoices().find(v => v.lang.startsWith('ja'));
+      if (jaVoice) {
+        utt.voice = jaVoice;
+        this.ttsVoice = jaVoice.name + '/' + jaVoice.lang;
+        console.log('[TTS] voice:', jaVoice.name, jaVoice.lang);
+      } else {
+        this.ttsVoice = 'noJaVoice(lang=ja-JP)';
+        console.log('[TTS] no Japanese voice found, using lang=ja-JP only');
+      }
+
+      let done = false;
+      const finish = (reason) => {
+        if (done) return;
+        done = true;
+        this.ttsStatus = 'done:' + reason;
+        console.log('[TTS] finish(), reason:', reason);
+        clearTimeout(maxTimer);
+        clearTimeout(startCheck);
+        resolve();
+      };
+
+      const maxMs = Math.min(5000, Math.max(3000, text.length * 150 + 1500));
+      const maxTimer = setTimeout(() => {
+        console.log('[TTS] maxTimer fired (' + maxMs + 'ms)');
+        finish('maxTimer');
+      }, maxMs);
+
+      const startCheck = setTimeout(() => {
+        const sp = this.speechSynth.speaking;
+        const pe = this.speechSynth.pending;
+        console.log('[TTS] startCheck@1500ms: speaking=', sp, 'pending=', pe);
+        if (!sp && !pe) {
+          console.log('[TTS] startCheck → speech never started, finishing');
+          finish('startCheck-notStarted');
         }
+      }, 1500);
 
-        let done = false;
-        const finish = (reason) => {
-          if (done) return;
-          done = true;
-          this.ttsStatus = 'done:' + reason;
-          console.log('[TTS] finish(), reason:', reason);
-          clearTimeout(maxTimer);
-          clearTimeout(startCheck);
-          resolve();
-        };
+      utt.onstart = () => {
+        this.ttsStatus = 'speaking';
+        console.log('[TTS] onstart fired');
+      };
+      utt.onend = () => {
+        console.log('[TTS] onend fired');
+        finish('onend');
+      };
+      utt.onerror = (e) => {
+        console.log('[TTS] onerror:', e.error, e);
+        this.ttsStatus = 'error:' + e.error;
+        finish('onerror');
+      };
 
-        const maxMs = Math.min(5000, Math.max(3000, text.length * 150 + 1500));
-        const maxTimer = setTimeout(() => {
-          console.log('[TTS] maxTimer fired (' + maxMs + 'ms)');
-          finish('maxTimer');
-        }, maxMs);
-
-        const startCheck = setTimeout(() => {
-          const sp = this.speechSynth.speaking;
-          const pe = this.speechSynth.pending;
-          console.log('[TTS] startCheck@800ms: speaking=', sp, 'pending=', pe);
-          if (!sp && !pe) {
-            console.log('[TTS] startCheck → speech never started, finishing');
-            finish('startCheck-notStarted');
-          }
-        }, 800);
-
-        utt.onstart = () => {
-          this.ttsStatus = 'speaking';
-          console.log('[TTS] onstart fired');
-        };
-        utt.onend = () => {
-          console.log('[TTS] onend fired');
-          finish('onend');
-        };
-        utt.onerror = (e) => {
-          console.log('[TTS] onerror:', e.error, e);
-          this.ttsStatus = 'error:' + e.error;
-          finish('onerror');
-        };
-
-        console.log('[TTS] calling speechSynth.speak()');
-        this.speechSynth.speak(utt);
-        console.log('[TTS] after speak(): speaking=', this.speechSynth.speaking, 'pending=', this.speechSynth.pending);
-      }, 50);
+      console.log('[TTS] calling speechSynth.speak() synchronously');
+      this.speechSynth.speak(utt);
+      console.log('[TTS] after speak(): speaking=', this.speechSynth.speaking, 'pending=', this.speechSynth.pending);
     });
   }
 
